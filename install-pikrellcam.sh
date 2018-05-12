@@ -245,6 +245,7 @@ else
 	NGINX_SITE=etc/nginx-jessie-site-default
 fi
 
+echo ""
 echo "Installing /etc/nginx/sites-available/pikrellcam"
 echo "    nginx web server port: $PORT"
 echo "    nginx web server root: $PWD/www"
