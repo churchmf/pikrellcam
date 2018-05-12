@@ -1,19 +1,15 @@
 #!/bin/bash
-
-PGM=`basename $0`
-
-if [ `id -u` == 0 ]
-then
-    echo -e "$PGM should not be run as root.\n"
-    exit 1
-fi
+PGM=`basename $0
+ARG_PORT=${1:-80}
+ARG_AUTOSTART=${2:-true}
+ARG_PASSWORD=${3:-}
 
 bad_install()
-	{
+{
 	echo "Cannot find $1 in $PWD"
 	echo "Are you running $PGM in the install directory?"
 	exit 1
-	}
+}
 
 if [ ! -x $PWD/pikrellcam ]
 then
@@ -46,64 +42,23 @@ then
 fi
 
 echo ""
-echo "Set the port for the nginx web server."
-echo "If you already have a web server configuration using the default"
-echo "port 80, you should enter an alternate port for PiKrellCam."
-echo "Otherwise you can use the default port 80 or an alternate as you wish."
-echo "The port number will be set in: /etc/nginx.sites-available/pikrellcam."
-echo -n "Enter web server port: "
-read resp
-if [ "$resp" == "" ]
-then
-	PORT=80
-else
-	PORT=$resp
-fi
+echo "The port for the nginx web server to is set to $ARG_PORT"
+PORT=$ARG_PORT
 
 echo ""
-echo "For auto starting at boot, a PiKrellCam start command must be in rc.local."
-echo "If you don't start at boot, PiKrellCam can always be started and stopped"
-echo "from the web page."
-echo -n "Do you want PiKrellCam to be auto started at boot? (yes/no): "
-read resp
-if [ "$resp" == "y" ] || [ "$resp" == "yes" ]
-then
-	AUTOSTART=yes
-else
-	AUTOSTART=no
-fi
-
+echo "Autostart is set to $ARG_AUTOSTART"
+AUTOSTART=$ARG_AUTOSTART
 
 HTPASSWD=www/.htpasswd
 PASSWORD=""
 
-echo ""
 if [ -f $HTPASSWD ]
 then
-	echo "A web password is already set."
-	echo -n "Do you want to change the password (yes/no)? "
-	read resp
-	if [ "$resp" == "y" ] || [ "$resp" == "yes" ]
-	then
-		SET_PASSWORD=yes
-		rm -f $HTPASSWD
-	else
-		SET_PASSWORD=no
-	fi
-else
-	SET_PASSWORD=yes
+	echo ""
+	echo "A web password is already set. Replacing..."
+	PASSWORD=$ARG_PASSWORD
+	rm -f $HTPASSWD
 fi
-
-if [ "$SET_PASSWORD" == "yes" ]
-then
-	echo "Enter a password for a web page login for user: $USER"
-	echo "Enter a blank entry if you do not want the password login."
-	echo -n "Enter password: "
-	read PASSWORD
-fi
-
-
-
 
 echo ""
 echo "Starting PiKrellCam install..."
@@ -134,7 +89,7 @@ done
 
 for PACKAGE in gpac nginx libav-tools bc \
 	sshpass mpack imagemagick apache2-utils libasound2 libasound2-dev \
-	libmp3lame0 libmp3lame-dev
+	libmp3lame0 libmp3lame-dev libraspberrypi-bin dialog
 do
 	if ! dpkg -s $PACKAGE 2>/dev/null | grep Status | grep -q installed
 	then
@@ -146,12 +101,13 @@ if [ "$PACKAGE_LIST" != "" ]
 then
 	echo "Installing packages: $PACKAGE_LIST"
 	echo "Running: apt-get update"
-	sudo apt-get update
+	sudo apt-get update -y
+	echo "Running: apt-get upgrade"
+	sudo apt-get upgrade -y
 	sudo apt-get install -y --no-install-recommends $PACKAGE_LIST
 else
 	echo "No packages need to be installed."
 fi
-
 
 if ((DEB_VERSION < JESSIE))
 then
@@ -161,7 +117,6 @@ then
 		sudo apt-get install -y --no-install-recommends realpath
 	fi
 fi
-
 
 if [ ! -h /usr/local/bin/pikrellcam ]
 then
@@ -177,7 +132,6 @@ else
         sudo ln -s $PWD/pikrellcam /usr/local/bin/pikrellcam
     fi
 fi
-
 
 # =============== create initial ~/.pikrellcam configs ===============
 #
@@ -209,13 +163,11 @@ then
 	sed -i  "/install_dir/c\install_dir $PWD" $PIKRELLCAM_CONF
 fi
 
-
 # =============== pikrellcam autostart to rc.local  ===============
 #
-#CMD="su $USER -c '(sleep 5; \/home\/pi\/pikrellcam\/pikrellcam)  \&'"
 CMD="su $USER -c '(sleep 5; $PWD/pikrellcam) \&'"
 
-if [ "$AUTOSTART" == "yes" ]
+if [ "$AUTOSTART" == true ]
 then
     if ! fgrep -q "$CMD" /etc/rc.local
     then
@@ -240,7 +192,6 @@ else
 	fi
 fi
 
-
 # ===== sudoers permission for www-data to run pikrellcam as pi ======
 #
 CMD=$PWD/pikrellcam
@@ -253,11 +204,11 @@ then
 	sudo chown root.root /tmp/pikrellcam.sudoers.tmp
 	sudo chmod 440 /tmp/pikrellcam.sudoers.tmp
 	sudo mv /tmp/pikrellcam.sudoers.tmp /etc/sudoers.d/pikrellcam
-#	sudo cat /etc/sudoers.d/pikrellcam
 fi
 
 # =============== Setup Password  ===============
 #
+echo "Setting password..."
 OLD_SESSION_PATH=www/session
 if [ -d $OLD_SESSION_PATH ]
 then
@@ -275,7 +226,6 @@ then
 	htpasswd -bc $HTPASSWD $USER $PASSWORD
 	sudo chown $USER.www-data $HTPASSWD
 fi
-
 
 # =============== nginx install ===============
 #
@@ -336,7 +286,7 @@ then
 	sudo sed -i 's/auth_basic/\# auth_basic/' $NGINX_SITE
 fi
 
-sudo service nginx restart
+# sudo service nginx restart
 
 
 # =============== Setup FIFO  ===============
@@ -350,8 +300,6 @@ then
 fi
 sudo chown $USER.www-data $fifo
 sudo chmod 664 $fifo
-
-
 
 # =============== copy scripts-dist into scripts  ===============
 #
@@ -382,7 +330,7 @@ else
 fi
 echo "and click on the \"System\" panel and then the \"Start PiKrellCam\" button."
 echo "PiKrellCam can also be run from a Pi terminal for testing purposes."
-if [ "$AUTOSTART" == "yes" ]
+if [ "$AUTOSTART" == true ]
 then
 	echo "Automatic pikrellcam starting at boot is enabled."
 fi
