@@ -1,5 +1,5 @@
 #!/bin/bash
-PGM=`basename $0
+PGM=`basename $0`
 ARG_PORT=${1:-80}
 ARG_AUTOSTART=${2:-true}
 ARG_PASSWORD=${3:-}
